@@ -1,0 +1,339 @@
+---
+title: "Factor Analysis"
+output:
+  html_notebook: default
+  html_document:
+    df_print: paged
+editor_options:
+  markdown:
+    wrap: sentence
+---
+
+# Introduction
+
+- <a href= '#understanding'>Understanding the Dataset</a>
+- <a href= '#cormatrix'>Correlation Matrix</a>
+  - <a href= '#corplot'>Correlation Plot</a>
+- <a href= '#factor-analysis'>Factor Analysis</a>
+  - <a href= '#kmo-barlett'>KMO and Bartlett's Test</a>
+    - <a href= '#kmo-test'>KMO Test</a>
+    - <a href= '#barlett-test'>Bartlett's Test</a>
+    - <a href= '#anti-image'>Anti-image Correlation/Covariance Matrix</a>
+  - <a href= '#scree-plot'>Scree Plot</a>
+    - <a href= '#parallel-analysis'>Parallel Analysis Scree Plots</a>    
+  - <a href= '#rotated-compmatrix'>Rotated Component Matrix</a>    
+    - <a href= '#graph-factor-loading'>Graph Factor Loading Matrices</a>  
+  - <a href= '#cronbach-alpha'>Cronbach's Alpha</a> 
+- <a href= '#conclusion'>Conclusion</a> 
+ 
+
+    
+<a id='understanding'></a>
+
+# Understanding the Dataset
+
+```{r}
+# R Packages
+packages <-
+  c("tidyverse",
+    "ggplot2",
+    "rstatix",
+    "pander",
+    "heplots",
+    "readr",
+    "psych",
+    "corrplot")
+
+suppressPackageStartupMessages(lapply(packages, require, character.only = TRUE))
+
+# Importing Data
+df <- read.csv("./dataset/data.csv", sep = ";")
+
+
+# for kaggle
+# df <- read.csv("../input/airline-passenger-satisfaction/train.csv, sep = ";")
+
+# Top 6 rows
+head(df)
+```
+
+```{r}
+class(df)
+```
+
+```{r}
+# Structure of the data frame
+str(df)
+```
+
+```{r}
+print(sapply(df, class))
+```
+
+```{r}
+# To convert all integer columns to numeric columns
+
+df <- df %>% mutate_if(is.integer, as.numeric)
+
+print(sapply(df, class))
+```
+
+```{r}
+dim(df)
+```
+
+```{r}
+# Structure of the data frame
+str(df)
+```
+
+```{r}
+# checking for any missing values in a dataframe
+any(is.na(df))
+```
+
+```{r}
+# Count of missing values
+sum(is.na(df))
+```
+
+```{r}
+#Position of missing values by column
+sapply(df, function(x) which(is.na(x)))
+
+df$ArrivalDelayinMinutes[is.na(df$ArrivalDelayinMinutes)] <- 0
+
+any(is.na(df))
+```
+
+```{r}
+# Statistical summary
+summary(df)
+```
+
+<a id='cormatrix'></a>
+
+# Correlation Matrix
+
+Correlation matrix is a table showing correlation coefficients between variables.
+Correlation coefficient is a statistical measure of the strength of a linear relationship between two variables.
+
+```{r}
+data_01 <- df %>%
+  as.data.frame() %>%
+  dplyr::select(09:22)
+
+data_cor <- data_01 %>%
+  as.matrix() %>%
+  cor() 
+```
+
+```{r}
+view(list(data_cor))
+```
+
+
+<a id='corplot'></a>
+
+## Correlation Plot
+
+```{r}
+corrplot(data_cor,
+         method = "number",
+         col = colorRampPalette(c("white", "#85C1E9", "#4A235A"))(100))
+```
+
+```{r}
+corrplot(data_cor,
+         method = "color")
+```
+
+
+<a id='factor-analysis'></a>
+
+# Factor Analysis
+
+Factor analysis is a way of taking a chunk of data and shrinking it into a smaller dataset that is more manageable and more understandable.
+
+
+<a id='kmo-barlett'></a>
+
+## KMO and Bartlett's Test
+
+
+<a id='kmo-test'></a>
+
+### KMO Test
+
+The Kaiser--Meyer--Olkin (KMO) test is a test used to examine the strength of the partial correlation between variables.
+So it measures how convenient it is.
+
+```{r}
+# Kaiser-Meyer-Olkin Measure of Sampling Adequacy
+KMO(data_cor)
+```
+
+<u>**KMO Test Interpretation**</u><br>
+
+If the Kaiser--Meyer--Olkin (KMO) Sampling Adequacy Measure is greater than or equal to 0.60, factor analysis is continued.
+The result is 0.78, which is sufficient.
+
+<a id='barlett-test'></a>
+
+### Bartlett's Test
+
+Bartlett's test of Sphericity tests the null hypothesis that the correlation matrix is an identity matrix.
+That is, it is used to test the hypothesis that the correlation matrix is a unit matrix.
+
+```{r}
+# Bartlett's Test of Sphericity
+cortest.bartlett(data_cor, n = nrow(df))
+```
+
+<u>**Bartlett's Test Interpretation**</u><br>
+
+An important statistical test (usually less than 0.05) shows that the correlation matrix is not really a unit matrix (rejection of the null hypothesis).
+If the result is less than 0.05, the analysis is continued.
+
+
+<a id='anti-image'></a>
+
+### Anti-image Correlation/Covariance Matrix
+
+The image of a variable is defined as that part which is predictable by regressing each variable on all the other variables.
+So anti image is the part of the variable that cannot be predicted [ref](https://www.stata.com/manuals13/mvglossary.pdf).
+
+```{r}
+# Anti-image Covariance
+
+view(KMO(data_cor)$ImCov)
+```
+
+```{r}
+# Anti-image Correlation
+library(multiUS)
+view(antiImage(X = data_01))
+```
+
+<a id='scree-plot'></a>
+
+## Scree Plot
+
+It is the plot of the eigenvalues and the number of factors in the order of subtraction.
+It is used to determine the optimum number of factors to keep in the final solution.
+
+```{r}
+scree(data_cor, factors = FALSE)
+```
+
+<a id='parallel-analysis'></a>
+
+### Parallel Analysis Scree Plots
+
+Parallel analysis scree plot is a technique designed to help take some of the subjectivity out of interpreting.
+
+```{r}
+parallel <- fa.parallel(data_01)
+```
+
+<a id='rotated-compmatrix'></a>
+
+## Rotated Component Matrix
+
+The rotated component matrix helps in determining what the components represent.
+
+```{r}
+data.fa <- principal(data_cor, nfactors = 3, rotate = "varimax")
+
+data.fa$loadings
+```
+
+```{r}
+
+print.psych(data.fa, sort = TRUE)
+
+
+#ICLUST.sort(data.fa$loadings,labels = NULL,keys = FALSE,clustsort = TRUE)
+
+```
+
+-   **Extraction Method:** Principal Component Analysis.
+
+-   **Rotation Method:** Varimax with Kaiser Normalization.
+
+    -   Rotation converged in 4 iterations.
+
+Varimax Rotation: It is used as a statistical technique used at one level of factor analysis as an attempt to clarify the relationship between factors.
+In short, it tries to redistribute factor loads such that each variable measures exactly one factor.
+
+<u>**NOTE**</u><br> For *IBM SPSS Statistics* : `Analyze > Dimension Reduction > Factor`.
+You can perform the analysis by ticking the ones you want in the "Options" section.
+
+
+
+<a id='graph-factor-loading'></a>
+
+### Graph Factor Loading Matrices
+
+```{r}
+fa.diagram(data.fa)
+```
+
+<u>**Interpretation**</u><br>
+
+v6 and v12 is a low-contribution variable.
+
+
+
+<a id='cronbach-alpha'></a>
+
+## Cronbach's Alpha
+
+It helps measure the internal consistency of a set of data.
+It is a reliability coefficient.
+Provides verification of the consistency of a questionnaire or survey.
+
+```{r}
+library(ltm)
+
+rc1_alpha <- data_01[, c("v14",  "v7", "v5", "v8")]
+rc3_alpha <- data_01[, c("v13", "v11", "v9", "v10")]
+rc2_alpha <- data_01[, c("v3", "v1", "v4", "v2")]
+
+
+# rc = rotated component
+cronbach.alpha(rc1_alpha)
+cronbach.alpha(rc3_alpha)
+cronbach.alpha(rc2_alpha)
+```
+
+| alpha   |           |
+|---------|-----------|
+| \>=0.9  | Excellent |
+| 0.8-0.9 | Good      |
+
+
+<a id='conclusion'></a>
+
+# Conclusion
+
+Factor 1: **Comfort**
+
+-   Cleanliness
+-   Seat Comfort
+-   Food And Drink
+-   Inflight Entertainment
+
+Factor 2: **Service**
+
+-   Ease Of Online Booking
+-   Inflight Wifi Service
+-   Gate Location
+-   Departure Arrival Time Convenient
+
+Factor 3: **Convenience**
+
+-   Inflight Service
+-   Baggage Handling
+-   On Board Service
+-   Leg Room Service
